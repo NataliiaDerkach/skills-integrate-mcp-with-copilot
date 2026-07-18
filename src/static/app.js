@@ -3,6 +3,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const loginToggle = document.getElementById("login-toggle");
+  const loginForm = document.getElementById("login-form");
+  const loginSubmit = document.getElementById("login-submit");
+  const logoutBtn = document.getElementById("logout");
+  const usernameInput = document.getElementById("username");
+  const passwordInput = document.getElementById("password");
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -13,6 +19,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Clear loading message
       activitiesList.innerHTML = "";
 
+      const token = localStorage.getItem("auth");
+      const loggedIn = !!token;
+
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
@@ -22,20 +31,21 @@ document.addEventListener("DOMContentLoaded", () => {
           details.max_participants - details.participants.length;
 
         // Create participants HTML with delete icons instead of bullet points
-        const participantsHTML =
-          details.participants.length > 0
-            ? `<div class="participants-section">
+        const participantsHTML = details.participants.length > 0
+          ? `<div class="participants-section">
               <h5>Participants:</h5>
               <ul class="participants-list">
                 ${details.participants
-                  .map(
-                    (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
-                  )
+                  .map((email) => {
+                    const deleteBtn = loggedIn
+                      ? `<button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button>`
+                      : "";
+                    return `<li><span class="participant-email">${email}</span>${deleteBtn}</li>`;
+                  })
                   .join("")}
               </ul>
             </div>`
-            : `<p><em>No participants yet</em></p>`;
+          : `<p><em>No participants yet</em></p>`;
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
@@ -56,10 +66,19 @@ document.addEventListener("DOMContentLoaded", () => {
         activitySelect.appendChild(option);
       });
 
-      // Add event listeners to delete buttons
-      document.querySelectorAll(".delete-btn").forEach((button) => {
-        button.addEventListener("click", handleUnregister);
-      });
+      // Add event listeners to delete buttons (only present when logged in)
+      if (loggedIn) {
+        document.querySelectorAll(".delete-btn").forEach((button) => {
+          button.addEventListener("click", handleUnregister);
+        });
+      }
+
+      // Toggle signup form visibility depending on auth
+      if (loggedIn) {
+        signupForm.classList.remove("hidden");
+      } else {
+        signupForm.classList.add("hidden");
+      }
     } catch (error) {
       activitiesList.innerHTML =
         "<p>Failed to load activities. Please try again later.</p>";
@@ -74,12 +93,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const email = button.getAttribute("data-email");
 
     try {
+      const token = localStorage.getItem("auth");
+      const headers = token ? { Authorization: `Basic ${token}` } : {};
+
       const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/unregister?email=${encodeURIComponent(email)}`,
+        `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
         {
           method: "DELETE",
+          headers,
         }
       );
 
@@ -118,12 +139,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const activity = document.getElementById("activity").value;
 
     try {
+      const token = localStorage.getItem("auth");
+      const headers = token ? { Authorization: `Basic ${token}` } : {};
+
       const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/signup?email=${encodeURIComponent(email)}`,
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
         {
           method: "POST",
+          headers,
         }
       );
 
@@ -157,4 +180,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize app
   fetchActivities();
+
+  // Login toggle
+  loginToggle.addEventListener("click", () => {
+    loginForm.classList.toggle("hidden");
+  });
+
+  // Handle login submit
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const user = usernameInput.value;
+    const pass = passwordInput.value;
+    const token = btoa(`${user}:${pass}`);
+    localStorage.setItem("auth", token);
+    usernameInput.value = "";
+    passwordInput.value = "";
+    loginForm.classList.add("hidden");
+    fetchActivities();
+  });
+
+  // Logout
+  logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem("auth");
+    fetchActivities();
+  });
 });
