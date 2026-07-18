@@ -5,11 +5,14 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
 from pathlib import Path
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import json
+import secrets
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
@@ -77,6 +80,36 @@ activities = {
     }
 }
 
+# Basic teacher authentication
+security = HTTPBasic()
+current_dir = Path(__file__).parent
+TEACHERS_FILE = current_dir / "teachers.json"
+_teachers = []
+if TEACHERS_FILE.exists():
+    try:
+        with open(TEACHERS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            _teachers = data.get("teachers", [])
+    except Exception:
+        _teachers = []
+
+
+def verify_teacher(credentials: HTTPBasicCredentials = Depends(security)):
+    """Verify provided basic auth credentials against `teachers.json`.
+
+    Raises HTTPException(401) on failure so the endpoints requiring this
+    dependency will reject unauthorized requests.
+    """
+    username = credentials.username
+    password = credentials.password
+
+    for t in _teachers:
+        # Use constant-time compare for both username and password
+        if secrets.compare_digest(t.get("username", ""), username) and secrets.compare_digest(t.get("password", ""), password):
+            return True
+
+    raise HTTPException(status_code=401, detail="Unauthorized", headers={"WWW-Authenticate": "Basic"})
+
 
 @app.get("/")
 def root():
@@ -89,7 +122,7 @@ def get_activities():
 
 
 @app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
+def signup_for_activity(activity_name: str, email: str, authorized: bool = Depends(verify_teacher)):
     """Sign up a student for an activity"""
     # Validate activity exists
     if activity_name not in activities:
@@ -111,7 +144,7 @@ def signup_for_activity(activity_name: str, email: str):
 
 
 @app.delete("/activities/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str):
+def unregister_from_activity(activity_name: str, email: str, authorized: bool = Depends(verify_teacher)):
     """Unregister a student from an activity"""
     # Validate activity exists
     if activity_name not in activities:

@@ -23,6 +23,21 @@
 
       <section id="signup-container">
         <h3>Sign Up for an Activity</h3>
+        <div id="auth-container">
+          <button id="login-toggle">Teacher Login</button>
+          <form id="login-form" class="hidden">
+            <div class="form-group">
+              <label for="username">Username:</label>
+              <input type="text" id="username" required />
+            </div>
+            <div class="form-group">
+              <label for="password">Password:</label>
+              <input type="password" id="password" required />
+            </div>
+            <button type="submit" id="login-submit">Login</button>
+            <button type="button" id="logout" class="hidden">Logout</button>
+          </form>
+        </div>
         <form id="signup-form">
           <div class="form-group">
             <label for="email">Student Email:</label>
